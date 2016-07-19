@@ -39,7 +39,7 @@ def compute_fscore_macro(real_labels, pred_labels):
         sum_labels = cat_labels + cat_pred_labels
         tn = np.count_nonzero(sum_labels == 0)
         tp = np.count_nonzero(sum_labels == 2)
-        sub_labels = cat_labels - cat_pred_labels
+        sub_labels = cat_labels.astype('int') - cat_pred_labels.astype('int')
         fp = np.count_nonzero(sub_labels == -1)
         fn = np.count_nonzero(sub_labels == 1)
         if (tp + fp) == 0:
@@ -54,8 +54,8 @@ def compute_fscore_macro(real_labels, pred_labels):
             fscore_cat = 0
         else:
             fscore_cat = (2 * prec * rec) / (prec + rec)
-        fscore = fscore + fscore_cat
-    fscore = fscore / num_cats
+        fscore += fscore_cat
+    fscore /= num_cats
     return fscore
 
 
@@ -71,13 +71,13 @@ def compute_fscore_micro(real_labels, pred_labels):
         sum_labels = cat_labels + cat_pred_labels
         tn = np.count_nonzero(sum_labels == 0)
         tp = np.count_nonzero(sum_labels == 2)
-        sub_labels = cat_labels - cat_pred_labels
+        sub_labels = cat_labels.astype('int') - cat_pred_labels.astype('int')
         fp = np.count_nonzero(sub_labels == -1)
         fn = np.count_nonzero(sub_labels == 1)
-        prec_num = prec_num + tp
-        prec_den = prec_den + tp + fp
-        rec_num = rec_num + tp
-        rec_den = rec_den + tp + fn
+        prec_num += tp
+        prec_den += (tp + fp)
+        rec_num += tp
+        rec_den += (tp + fn)
     if prec_den != 0:
         prec = (1.0 * prec_num) / prec_den
     else:
@@ -103,6 +103,7 @@ if __name__ == '__main__':
     # Read data from file f into a new numpy array:
     data_array = np.loadtxt(f, dtype=float, delimiter=',')
     # Shuffle rows in data_array:
+    np.random.seed(2706)
     np.random.shuffle(data_array)
     num_samps = data_array.shape[0]
     dataset = data_array[:, :num_cats]
@@ -119,8 +120,8 @@ if __name__ == '__main__':
     train_set_labels = true_labels[:num_train_samps, :]
     val_set = dataset[num_train_samps:(num_train_samps+num_val_samps), :]
     val_set_labels = true_labels[num_train_samps:(num_train_samps+num_val_samps), :]
-    test_set = dataset[num_train_samps:, :]
-    test_set_labels = true_labels[num_train_samps:, :]
+    test_set = dataset[(num_train_samps+num_val_samps):, :]
+    test_set_labels = true_labels[(num_train_samps+num_val_samps):, :]
     prior_probs = prior_prob_per_cat(train_set_labels, num_cats)
     max_fscore = 0
     x_optim = 0
