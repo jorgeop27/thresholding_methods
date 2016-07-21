@@ -136,5 +136,7 @@ if __name__ == '__main__':
     print "Optimum X: %d" % x_optim
     # Perform prediction on test set:
     pred_testset_labels = pcut_thresholding(test_set, prior_probs, x_optim)
-    fscore = compute_fscore_macro(test_set_labels, pred_testset_labels)
-    print "Test F-Score: %f" % fscore
+    fscore_micro = compute_fscore_micro(test_set_labels, pred_testset_labels)
+    print "Test Micro F-Score: %f" % fscore_micro
+    fscore_macro = compute_fscore_macro(test_set_labels, pred_testset_labels)
+    print "Test Macro F-Score: %f" % fscore_macro

@@ -1,8 +1,42 @@
 #!/usr/bin/env python
 
 import argparse
-import sys
 import numpy as np
+
+
+# scut_thresholding calculates the thresholds for each category
+def scut_thresholding(scores, labels):
+    num_labels = scores.shape[1]
+    set_length = scores.shape[0]
+    # print set_length
+    # Calculate one threshold for each label:
+    thresholds = np.zeros(num_labels)
+    for lbl in xrange(num_labels):
+        scores_lbl = scores[:, lbl]
+        real_lbl = labels[:, lbl].astype('int')
+        opt_th = 0.0
+        min_mse = np.Inf
+        for th in np.linspace(0, 1, 1000):
+            pred_lbl = (scores_lbl >= th).astype('int')
+            mse = (np.power(pred_lbl - real_lbl, 2).sum()).astype('float')/set_length
+            # print "Threshold: %f - MSE: %f" % (th, mse)
+            if mse < min_mse:
+                min_mse = mse
+                opt_th = th
+        print "Label %d - Threshold: %f - Min MSE: %f" % (lbl+1, opt_th, min_mse)
+        thresholds[lbl] = opt_th
+    return thresholds
+
+
+def apply_thresholds(scores, thresholds):
+    num_labels = scores.shape[1]
+    set_length = scores.shape[0]
+    pred_labels = np.zeros((set_length, num_labels), dtype='uint8')
+    for lbl in xrange(num_labels):
+        scores_lbl = scores[:, lbl]
+        th = thresholds[lbl]
+        pred_labels[:, lbl] = (scores_lbl >= th).astype('uint8')
+    return pred_labels
 
 
 def compute_fscore_macro(real_labels, pred_labels):
@@ -17,7 +51,6 @@ def compute_fscore_macro(real_labels, pred_labels):
         sub_labels = cat_labels.astype('int') - cat_pred_labels.astype('int')
         fp = np.count_nonzero(sub_labels == -1)
         fn = np.count_nonzero(sub_labels == 1)
-        # print "TN: %d, TP: %d, FN: %d, FP: %d" % (tn, tp, fn, fp)
         if (tp + fp) == 0:
             prec = 0
         else:
@@ -69,21 +102,8 @@ def compute_fscore_micro(real_labels, pred_labels):
     return fscore
 
 
-def rcut_thresholding(scores, threshold):
-    num_labels = scores.shape[1]
-    set_length = scores.shape[0]
-    pred_labels = np.zeros((set_length, num_labels), dtype='uint8')
-    # Get the indices of the sorted array of data:
-    sort_index = np.argsort(scores, axis=1)
-    # Reverse the order of the columns to get High to Low order:
-    sort_index = np.fliplr(sort_index)
-    labels = sort_index[:, :threshold]
-    row_index = np.array(range(set_length)).reshape(1, -1).T
-    pred_labels[(row_index, labels)] = 1
-    return pred_labels
-
-if __name__=='__main__':
-    parser = argparse.ArgumentParser(description='Calculates Rank Cut thresholding over the data in the filename.')
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='Calculates SCut thresholding over the data in the filename.')
     parser.add_argument('filename', nargs=1, type=file, help='Filename of the data with the scores.')
     parser.add_argument('num_categories', nargs=1, type=int, help='Number of categories in the previous data set')
     args = parser.parse_args()
@@ -97,7 +117,7 @@ if __name__=='__main__':
     num_samps = data_array.shape[0]
     dataset = data_array[:, :num_cats]
     truelabs = data_array[:, num_cats:].astype('uint8')
-    true_labels = np.zeros((num_samps, num_cats + 1), dtype='uint8')
+    true_labels = np.zeros((num_samps, num_cats+1), dtype='uint8')
     row_index = np.array(range(num_samps)).reshape(1, -1).T
     true_labels[(row_index, truelabs)] = 1
     true_labels = true_labels[:, 1:]
@@ -108,19 +128,10 @@ if __name__=='__main__':
     test_set_labels = true_labels[:num_test_samps, :]
     val_set = dataset[num_test_samps:, :]
     val_set_labels = true_labels[num_test_samps:, :]
-    max_fscore = 0
-    t_optim = 0
-    for t in xrange(1, num_cats+1):
-        pred_val_labels = rcut_thresholding(val_set, t)
-        fscore_macro = compute_fscore_macro(val_set_labels, pred_val_labels)
-        if fscore_macro > max_fscore:
-            max_fscore = fscore_macro
-            t_optim = t
-        print t, fscore_macro
-    # Optimum value for T:
-    print "Optimum T: %d" % t_optim
+    thresholds = scut_thresholding(val_set, val_set_labels)
+    print "Thresholds: %s" % thresholds
     # Perform prediction on test set:
-    pred_testset_labels = rcut_thresholding(test_set, t_optim)
+    pred_testset_labels = apply_thresholds(test_set, thresholds)
     fscore_micro = compute_fscore_micro(test_set_labels, pred_testset_labels)
     print "Test Micro F-Score: %f" % fscore_micro
     fscore_macro = compute_fscore_macro(test_set_labels, pred_testset_labels)
