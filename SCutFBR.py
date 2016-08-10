@@ -2,6 +2,7 @@
 
 import argparse
 import numpy as np
+from performance_measures import *
 
 
 # scut_thresholding calculates the thresholds for each category
@@ -42,69 +43,6 @@ def apply_thresholds(scores, thresholds):
         th = thresholds[lbl]
         pred_labels[:, lbl] = (scores_lbl >= th).astype('uint8')
     return pred_labels
-
-
-def compute_fscore_macro(real_labels, pred_labels):
-    num_cats = real_labels.shape[1]
-    fscore = 0.0
-    for cat in xrange(num_cats):
-        cat_labels = real_labels[:, cat]
-        cat_pred_labels = pred_labels[:, cat]
-        sum_labels = cat_labels + cat_pred_labels
-        tn = np.count_nonzero(sum_labels == 0)
-        tp = np.count_nonzero(sum_labels == 2)
-        sub_labels = cat_labels.astype('int') - cat_pred_labels.astype('int')
-        fp = np.count_nonzero(sub_labels == -1)
-        fn = np.count_nonzero(sub_labels == 1)
-        if (tp + fp) == 0:
-            prec = 0
-        else:
-            prec = (1.0 * tp) / (tp + fp)
-        if (tp + fn) == 0:
-            rec = 0
-        else:
-            rec = (1.0 * tp) / (tp + fn)
-        if (prec + rec) == 0:
-            fscore_cat = 0
-        else:
-            fscore_cat = (2 * prec * rec) / (prec + rec)
-        fscore += fscore_cat
-    fscore /= num_cats
-    return fscore
-
-
-def compute_fscore_micro(real_labels, pred_labels):
-    num_cats = real_labels.shape[1]
-    prec_num = 0.0
-    prec_den = 0.0
-    rec_num = 0.0
-    rec_den = 0.0
-    for cat in xrange(num_cats):
-        cat_labels = real_labels[:, cat]
-        cat_pred_labels = pred_labels[:, cat]
-        sum_labels = cat_labels + cat_pred_labels
-        tn = np.count_nonzero(sum_labels == 0)
-        tp = np.count_nonzero(sum_labels == 2)
-        sub_labels = cat_labels.astype('int') - cat_pred_labels.astype('int')
-        fp = np.count_nonzero(sub_labels == -1)
-        fn = np.count_nonzero(sub_labels == 1)
-        prec_num += tp
-        prec_den += (tp + fp)
-        rec_num += tp
-        rec_den += (tp + fn)
-    if prec_den != 0:
-        prec = (1.0 * prec_num) / prec_den
-    else:
-        prec = 0
-    if rec_den != 0:
-        rec = (1.0 * rec_num) / rec_den
-    else:
-        rec = 0
-    if (prec + rec) != 0:
-        fscore = (2 * prec * rec) / (prec + rec)
-    else:
-        fscore = 0
-    return fscore
 
 
 if __name__ == '__main__':
