@@ -9,7 +9,9 @@ import numpy as np
 import requests
 
 organismsID = {'Escherichia_coli_ATCC_27325': '83333',
-               'Mycobacterium_tuberculosis_ATCC_25618': '83332'}
+               'Mycobacterium_tuberculosis_ATCC_25618': '83332',
+               'Bacillus_subtilis_168': '224308',
+               'Ruegeria_pomeroyi': '246200'}
 
 re_go = re.compile(r'GO:\d{7}')
 
@@ -187,7 +189,7 @@ def main(scores, labels, gotypes='/Users/jorge/Documents/RHUL/Dissertation/Datas
                             if goterms is not None:
                                 for goline in goterms:
                                     trline.append(goline)
-                            translate_lines.append('\t'.join(trline))
+                            translate_lines.append('\t'.join(trline) + '\n')
                         # if goterms is not None and len(goterms) > 0:
                         #     for newgo in goterms:
                         #         newgo_type = goterm_type.get(newgo, False)
@@ -482,4 +484,4 @@ if __name__ == '__main__':
     init_time = time.time()
     main(scores_file, labels_file)
     end_time = time.time()
-    print "Total execution time (s): %s" % (end_time - init_time)
+    print "Total execution time (min): %.2f" % ((end_time - init_time) / 60)
