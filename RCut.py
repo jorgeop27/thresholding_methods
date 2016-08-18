@@ -19,6 +19,7 @@ def rcut_thresholding(scores, threshold):
     return pred_labels
 
 
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Calculates Rank Cut thresholding over the data in the filename.')
     parser.add_argument('scores', nargs=1, type=file, help='Filename of the data with the scores.')

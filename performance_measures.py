@@ -93,7 +93,7 @@ def calculate_macro_recall(real_labels, predicted_labels, average=True):
         return macro_recall_per_class
 
 
-def calculate_macro_f1_score(real_labels, predicted_labels):
+def calculate_macro_f1_score(real_labels, predicted_labels, per_class=False):
     num_classes = real_labels.shape[1]
     recall = calculate_macro_recall(real_labels, predicted_labels, average=False)
     precision = calculate_macro_precision(real_labels, predicted_labels, average=False)
@@ -101,8 +101,12 @@ def calculate_macro_f1_score(real_labels, predicted_labels):
     f1_den = recall + precision
     f1_den[f1_den == 0] = np.nan
     f1_score = f1_num / f1_den
-    f1_score = np.nansum(f1_score) / num_classes
-    return f1_score
+    if per_class:
+        f1_score[np.isnan(f1_score)] = 0
+        return f1_score
+    else:
+        f1_score = np.nansum(f1_score) / num_classes
+        return f1_score
 
 
 def calculate_micro_precision(real_labels, predicted_labels):

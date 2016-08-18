@@ -16,13 +16,13 @@ organismsID = {'Escherichia_coli_ATCC_27325': '83333',
 re_go = re.compile(r'GO:\d{7}')
 
 
-def get_uniprot_data(species, gene, fill_data=False):
-    if fill_data:
-        url_req = "http://www.uniprot.org/uniprot/?query=organism:%s+gene:%s&format=tab&columns=id,go" % (species, gene)
-    else:
-        url_req = "http://www.uniprot.org/uniprot/?query=organism:%s+gene:%s&format=tab&columns=id" % (species, gene)
+def get_uniprot_data(species, gene):
+    url_req = "http://www.uniprot.org/uniprot/?query=organism:%s+gene:%s&format=tab&columns=id,go" % (species, gene)
     # print 'URl Request: %s' % url_req
-    r = requests.get(url_req)
+    try:
+        r = requests.get(url_req)
+    except requests.ConnectionError:
+        return None, None
     if r.status_code != 200:
         print "Error!! UniProtDB returned a Error Code 200."
         print "URL Request: %s" % url_req
@@ -35,19 +35,21 @@ def get_uniprot_data(species, gene, fill_data=False):
             ln = r.text.split('\n')[1]
             values = ln.strip().split('\t')
             prot_id = values[0]
-            if fill_data:
-                if len(values) > 1:
-                    gos = re.findall(re_go, values[1])
-                else:
-                    print "Protein %s with no GO Terms associated" % prot_id
-                    gos = []
+            if len(values) > 1:
+                gos = re.findall(re_go, values[1])
             else:
-                gos = None
+                print "Protein %s with no GO Terms associated" % prot_id
+                gos = []
             return prot_id, gos
 
 
-def main(scores, labels, gotypes='/Users/jorge/Documents/RHUL/Dissertation/Dataset/ontology_per_term', fill_data=True,
-         restrict_labels=False, use_translate_file=None):
+def main(scores, labels, gotypes, fill_godata=True, restrict_labels=True, translate_file=None):
+    # restrict_labels = True: Only use common GO terms between scores and labels
+    # restrict_labels = False: Use all GO terms from the GO classification (Biological, Molecular or Cellular)
+    # translate_file = None: Search for the gene name and GO terms online, in the UniProt catalogue
+    # translate_file = filepath: Use the file as a translate b/w gene names and protein ID
+    # fill_data = False: Do not complete the data of the GO terms in the labels
+    # fill_data = True: Complete the data of the GO terms from the data obtained from translate_file.
     basedir, filename = os.path.split(scores)
     basename = os.path.splitext(filename)[0]
     
@@ -72,10 +74,11 @@ def main(scores, labels, gotypes='/Users/jorge/Documents/RHUL/Dissertation/Datas
     cel_raw_scores = os.path.join(basedir, '%s.cellular_raw_scores' % basename)
     cel_raw_labels = os.path.join(basedir, '%s.cellular_raw_labels' % basename)
 
-    if use_translate_file is None:
+    if translate_file is None:
         translate_file = os.path.join(basedir, 'geneID_proteinID_translate.%s' % basename)
+        create_transfile = True
     else:
-        translate_file = use_translate_file
+        create_transfile = False
     
     if os.path.exists(bio_prots_file) or os.path.exists(bio_got_file) or os.path.exists(bio_scores_file) or \
             os.path.exists(bio_labels_file) or os.path.exists(mol_prots_file) or os.path.exists(mol_got_file) or \
@@ -119,9 +122,9 @@ def main(scores, labels, gotypes='/Users/jorge/Documents/RHUL/Dissertation/Datas
             values = ln.strip().split('\t')
             prot_id = values[0]
             goterm = values[1]
-            gotype = goterm_type.get(goterm, False)
-            if gotype is False:
-                print "%s: Type not found" % values[1]
+            gotype = goterm_type.get(goterm, None)
+            if gotype is None:
+                print "%s: Type not found" % goterm
             elif gotype == 1:
                 if prot_id.upper() not in bio_protein_list_labels.keys():
                     bio_protein_list_labels[prot_id.upper()] = [goterm]
@@ -139,6 +142,41 @@ def main(scores, labels, gotypes='/Users/jorge/Documents/RHUL/Dissertation/Datas
                     cel_protein_list_labels[prot_id.upper()].append(goterm)
             else:
                 print "GO Term Type not recognized: %d" % gotype
+
+    gene_protein_id = {}  # Map between gene names and protein IDs
+    if create_transfile is True:
+        translate_lines = []
+    else:
+        translate_lines = []
+        with open(translate_file, 'r') as tf:
+            for ln in tf:
+                arr = ln.strip().split('\t')
+                new_prot = arr[1]
+                gene_protein_id[arr[0].upper()] = new_prot
+                if fill_godata:
+                    go_terms = arr[2:]
+                    for new_go in go_terms:
+                        gotype = goterm_type.get(new_go, None)
+                        if gotype is None:
+                            print "%s: Type not found" % new_go
+                        elif gotype == 1:
+                            if new_prot.upper() not in bio_protein_list_labels.keys():
+                                bio_protein_list_labels[new_prot.upper()] = [new_go]
+                            else:
+                                bio_protein_list_labels[new_prot.upper()].append(new_go)
+                        elif gotype == 2:
+                            if new_prot.upper() not in mol_protein_list_labels.keys():
+                                mol_protein_list_labels[new_prot.upper()] = [new_go]
+                            else:
+                                mol_protein_list_labels[new_prot.upper()].append(new_go)
+                        elif gotype == 3:
+                            if new_prot.upper() not in cel_protein_list_labels.keys():
+                                cel_protein_list_labels[new_prot.upper()] = [new_go]
+                            else:
+                                cel_protein_list_labels[new_prot.upper()].append(new_go)
+                        else:
+                            print "GO Term Type not recognized: %d" % gotype
+
     if restrict_labels:
         biological_goterms = list(set(itertools.chain.from_iterable(bio_protein_list_labels.values())))
         molecular_goterms = list(set(itertools.chain.from_iterable(mol_protein_list_labels.values())))
@@ -153,16 +191,7 @@ def main(scores, labels, gotypes='/Users/jorge/Documents/RHUL/Dissertation/Datas
     print "Time: %.2f" % (t2 - t1)
 
     print "Initial pre-processing of scores..."
-    if use_translate_file is None:
-        gene_protein_id = {}     # Map between gene names and protein IDs
-        if fill_data:
-            translate_lines = []
-    else:
-        gene_protein_id = {}
-        with open(translate_file, 'r') as tf:
-            for ln in tf:
-                arr = ln.strip().split('\t')
-                gene_protein_id[arr[0].upper()] = arr[1]
+
     bio_prots = []          # All the proteins with biological ontologies common to the labels and scores
     bio_prot_scores = []    # All the lines from the proteins above that belong to the biological ontology
     mol_prots = []
@@ -173,46 +202,24 @@ def main(scores, labels, gotypes='/Users/jorge/Documents/RHUL/Dissertation/Datas
     with open(scores, 'r') as main_scores:
         for ln in main_scores:      # ln is a line with the following format: Gene_Name\tGOTerm\tScore\n
             values = ln.strip().split('\t')
-            gene_name = values[0]
+            genes_name = values[0].split('|')
             goterm = values[1]
             gotype = goterm_type.get(goterm, False)
             if gotype is None or gotype not in (1, 2, 3):
                 print "%s type not found or not recognized" % goterm
                 continue
             else:
+                gene_name = genes_name[0]
                 if gene_name.upper() not in gene_protein_id.keys():
-                    prot_id, goterms = get_uniprot_data(species, gene_name, fill_data)
+                    prot_id, goterms = get_uniprot_data(species, gene_name)
                     if prot_id is not None:
                         gene_protein_id[gene_name.upper()] = prot_id.upper()
-                        if fill_data and use_translate_file is None:
+                        if create_transfile:
                             trline = [gene_name, prot_id]
                             if goterms is not None:
                                 for goline in goterms:
                                     trline.append(goline)
                             translate_lines.append('\t'.join(trline) + '\n')
-                        # if goterms is not None and len(goterms) > 0:
-                        #     for newgo in goterms:
-                        #         newgo_type = goterm_type.get(newgo, False)
-                        #         if newgo_type == 1:
-                        #             if prot_id.upper() not in bio_protein_list_labels.keys():
-                        #                 bio_protein_list_labels[prot_id.upper()] = [newgo]
-                        #             else:
-                        #                 if newgo not in bio_protein_list_labels[prot_id.upper()]:
-                        #                     bio_protein_list_labels[prot_id.upper()].append(newgo)
-                        #         elif newgo_type == 2:
-                        #             if prot_id.upper() not in mol_protein_list_labels.keys():
-                        #                 mol_protein_list_labels[prot_id.upper()] = [newgo]
-                        #             else:
-                        #                 if newgo not in mol_protein_list_labels[prot_id.upper()]:
-                        #                     mol_protein_list_labels[prot_id.upper()].append(newgo)
-                        #         elif newgo_type == 3:
-                        #             if prot_id.upper() not in cel_protein_list_labels.keys():
-                        #                 cel_protein_list_labels[prot_id.upper()] = [newgo]
-                        #             else:
-                        #                 if newgo not in cel_protein_list_labels[prot_id.upper()]:
-                        #                     cel_protein_list_labels[prot_id.upper()].append(newgo)
-                        #         else:
-                        #             print "New GO Term %s not found in the functions (Bio/Mol/Cel)" % newgo
                         if gotype == 1:
                             if prot_id.upper() in bio_protein_list_labels.keys() and goterm in biological_goterms:
                                 bio_prots.append(prot_id.upper())
@@ -250,7 +257,7 @@ def main(scores, labels, gotypes='/Users/jorge/Documents/RHUL/Dissertation/Datas
                                 cel_prot_scores.append(values)
                     else:
                         continue
-    if fill_data and use_translate_file is None:
+    if create_transfile:
         with open(translate_file, 'w') as trw:
             trw.writelines(translate_lines)
     print "Score's initial classification done..."
@@ -475,13 +482,25 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Preprocess data files got as output from the S2F Classifier.')
     parser.add_argument('scores_file', nargs=1, help='Filename of the data with the scores.')
     parser.add_argument('labels_file', nargs=1, help='Filename of the data with the labels.')
+    parser.add_argument('--complete_go_data', action='store_true', dest='fill_godata', default=False,
+                        help='If present, the script complete the labels data from the go data from the translate '
+                             'file.')
+    parser.add_argument('--restrict_labels', action='store_true', dest='restrict_labels', default=False,
+                        help='If present, the script complete the labels data from the go data from the translate ')
+    parser.add_argument('--translate_file', nargs='?', dest='translate_file', default=None,
+                        help='If present, the script uses this file for translating gene names and protein IDs, and '
+                             'also for completing GO data if --complete_go_data is also present.')
     args = parser.parse_args()
     scores_file = args.scores_file[0]
     labels_file = args.labels_file[0]
-    print scores_file
-    print labels_file
-    
+    fill_go_data = args.fill_godata
+    restrict_lbls = args.restrict_labels
+    trans_file = args.translate_file
+    gotypes_file = '/Users/jorge/Documents/RHUL/Dissertation/Dataset/ontology_per_term'
+    # print fill_go_data
+    # print restrict_lbls
+    # print trans_file
     init_time = time.time()
-    main(scores_file, labels_file)
+    main(scores_file, labels_file, gotypes_file, fill_go_data, restrict_lbls, trans_file)
     end_time = time.time()
     print "Total execution time (min): %.2f" % ((end_time - init_time) / 60)
