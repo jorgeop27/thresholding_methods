@@ -54,7 +54,7 @@ if __name__ == '__main__':
     t_optim = 0
     for t in xrange(1, num_cats+1):
         pred_val_labels = rcut_thresholding(val_set, t)
-        fscore_macro = compute_fscore_macro(val_set_labels, pred_val_labels)
+        fscore_macro = calculate_macro_f1_score(val_set_labels, pred_val_labels)
         if fscore_macro > max_fscore:
             max_fscore = fscore_macro
             t_optim = t
@@ -63,7 +63,7 @@ if __name__ == '__main__':
     print "Optimum T: %d" % t_optim
     # Perform prediction on test set:
     pred_testset_labels = rcut_thresholding(test_set, t_optim)
-    fscore_micro = compute_fscore_micro(test_set_labels, pred_testset_labels)
+    fscore_micro = calculate_micro_f1_score(test_set_labels, pred_testset_labels)
     print "Test Micro F-Score: %f" % fscore_micro
-    fscore_macro = compute_fscore_macro(test_set_labels, pred_testset_labels)
+    fscore_macro = calculate_macro_f1_score(test_set_labels, pred_testset_labels)
     print "Test Macro F-Score: %f" % fscore_macro

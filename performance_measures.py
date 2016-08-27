@@ -41,11 +41,13 @@ def calculate_recall(real_labels, predicted_labels, average=True):
     num_samples = real_labels.shape[0]
     true_positive = np.sum(np.logical_and(real_labels, predicted_labels), axis=1).astype('float')
     num_predicted_labels = np.sum(predicted_labels, axis=1).astype('float')
+    num_predicted_labels[num_predicted_labels == 0] = np.nan
     recall_per_sample = true_positive / num_predicted_labels
-    recall = np.sum(recall_per_sample) / num_samples
+    recall = np.nansum(recall_per_sample) / num_samples
     if average:
         return recall
     else:
+        recall_per_sample[np.isnan(recall_per_sample)] = 0
         return recall_per_sample
 
 
@@ -62,7 +64,7 @@ def calculate_f1_score(real_labels, predicted_labels):
 
 
 # Label-based measures:
-# Macro/Micro Precision, Recall and F1-Score
+# Macro Precision, Recall and F1-Score
 def calculate_macro_precision(real_labels, predicted_labels, average=True):
     num_classes = real_labels.shape[1]
     true_positive = np.sum(np.logical_and(real_labels, predicted_labels), axis=0).astype('float')
@@ -109,18 +111,27 @@ def calculate_macro_f1_score(real_labels, predicted_labels, per_class=False):
         return f1_score
 
 
+# Overall measures:
+# Micro F1-Score, Precision and Recall
 def calculate_micro_precision(real_labels, predicted_labels):
     true_positive = np.sum(np.logical_and(real_labels, predicted_labels)).astype('float')
     false_positive = np.sum(np.logical_and(np.logical_not(real_labels), predicted_labels)).astype('float')
     precision_den = true_positive + false_positive
-    precision = true_positive / precision_den
+    if precision_den == 0:
+        precision = 0
+    else:
+        precision = true_positive / precision_den
     return precision
 
 
 def calculate_micro_recall(real_labels, predicted_labels):
     true_positive = np.sum(np.logical_and(real_labels, predicted_labels)).astype('float')
     false_negative = np.sum(np.logical_and(real_labels, np.logical_not(predicted_labels))).astype('float')
-    recall = true_positive / (true_positive + false_negative)
+    recall_den = true_positive + false_negative
+    if recall_den == 0:
+        recall = 0
+    else:
+        recall = true_positive / recall_den
     return recall
 
 

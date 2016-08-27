@@ -8,8 +8,8 @@ import itertools
 import numpy as np
 import requests
 
-organismsID = {'Escherichia_coli_ATCC_27325': '83333',
-               'Mycobacterium_tuberculosis_ATCC_25618': '83332',
+organismsID = {'Escherichia_coli_ATCC_27325': '83333',              # ECOLI
+               'Mycobacterium_tuberculosis_ATCC_25618': '83332',    # MYCTU
                'Bacillus_subtilis_168': '224308',
                'Ruegeria_pomeroyi': '246200'}
 
